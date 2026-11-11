@@ -4,108 +4,294 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Royal Barber | Barbershop</title>
+<meta name="theme-color" content="#111111">
+<meta name="description" content="Royal Barber – Herrenfriseur für moderne Haarschnitte, präzise Fades und professionelle Bartpflege. Jetzt Termin anfragen.">
+<title>Royal Barber | Premium Herrenfriseur</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+
 <style>
-* { box-sizing: border-box; }
+:root {
+  --gold: #c9a15b;
+  --black: #101010;
+  --cream: #eee9df;
+  --gray: #aaa49a;
+}
+* {box-sizing:border-box;margin:0;padding:0}
+html {scroll-behavior:smooth}
 body {
-  margin: 0;
-  background: #111;
-  color: white;
-  font-family: Arial, sans-serif;
+  background:var(--black);
+  color:var(--cream);
+  font-family:'DM Sans',sans-serif;
 }
+a {color:inherit;text-decoration:none}
+.container {width:90%;max-width:1150px;margin:auto}
+
 header {
-  padding: 25px 8%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #333;
+  height:85px;
+  display:flex;
+  align-items:center;
+  position:sticky;
+  top:0;
+  z-index:10;
+  background:rgba(16,16,16,.95);
+  border-bottom:1px solid #333;
 }
-.logo { color: #d5ad65; font-size: 23px; font-weight: bold; }
-nav a { color: white; text-decoration: none; margin-left: 20px; }
-.hero {
-  min-height: 75vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 30px;
-  background: linear-gradient(135deg,#111,#29231b);
+nav {display:flex;align-items:center;justify-content:space-between}
+.logo {
+  font-family:'Playfair Display',serif;
+  color:var(--gold);
+  font-size:27px;
+  font-weight:800;
 }
-.hero p { color: #d5ad65; letter-spacing: 4px; }
-h1 { font-size: clamp(42px,8vw,85px); margin: 15px 0; }
-h1 span { color: #d5ad65; }
+.navlinks {display:flex;gap:28px;font-size:14px}
+.navlinks a:hover {color:var(--gold)}
+.gold {color:var(--gold)}
 .btn {
-  background: #d5ad65;
-  color: #111;
-  padding: 16px 28px;
-  text-decoration: none;
-  font-weight: bold;
-  margin-top: 20px;
+  display:inline-block;
+  background:var(--gold);
+  color:#111;
+  padding:17px 27px;
+  font-weight:700;
+  transition:.3s;
 }
-section { padding: 65px 8%; text-align: center; }
-h2 { color: #d5ad65; font-size: 32px; }
+.btn:hover {background:#e0bd7d;transform:translateY(-3px)}
+.hero {
+  min-height:680px;
+  display:flex;
+  align-items:center;
+  background:
+  linear-gradient(90deg,rgba(0,0,0,.9),rgba(0,0,0,.3)),
+  url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1800') center/cover;
+}
+.hero-content {max-width:650px;padding:100px 0}
+.eyebrow {
+  color:var(--gold);
+  letter-spacing:5px;
+  font-size:12px;
+  margin-bottom:25px;
+}
+h1 {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(48px,8vw,88px);
+  line-height:1.08;
+  margin-bottom:25px;
+}
+.hero p {font-size:18px;color:#ddd;line-height:1.8;margin-bottom:35px}
+section {padding:100px 0}
+.section-title {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(34px,5vw,52px);
+  margin-bottom:15px;
+}
+.subtitle {color:var(--gray);line-height:1.8;margin-bottom:45px}
 .services {
-  display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
-  gap: 20px;
+  background:#171717;
 }
-.service {
-  border: 1px solid #444;
-  padding: 30px 15px;
+.cards {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:22px;
 }
-.price { color: #d5ad65; font-size: 22px; }
+.card {
+  background:#222;
+  border:1px solid #333;
+  transition:.3s;
+}
+.card:hover {transform:translateY(-7px);border-color:var(--gold)}
+.card img {
+  width:100%;
+  height:220px;
+  object-fit:cover;
+}
+.card-body {padding:25px}
+.card h3 {font-size:20px;margin-bottom:12px}
+.card p {color:var(--gray);font-size:14px;line-height:1.7}
+.price {color:var(--gold);font-size:24px;font-weight:700;margin-top:20px}
+.about-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:55px;
+  align-items:center;
+}
+.about-grid img {width:100%;height:440px;object-fit:cover}
+.about-text p {color:var(--gray);line-height:1.9;margin:20px 0 30px}
+.gallery {
+  background:#171717;
+}
+.gallery-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px;
+}
+.gallery-grid img {
+  width:100%;
+  height:260px;
+  object-fit:cover;
+}
+.booking {
+  text-align:center;
+  background:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.85)),
+  url('https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=1600') center/cover;
+}
+.booking p {color:#ddd;margin:20px auto 30px;line-height:1.8;max-width:550px}
+.contact-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:30px;
+}
+.contact-box {
+  padding:30px;
+  background:#1d1d1d;
+  border:1px solid #333;
+}
+.contact-box h3 {color:var(--gold);margin-bottom:15px}
+.contact-box p {color:var(--gray);line-height:1.8}
 footer {
-  text-align: center;
-  padding: 30px;
-  border-top: 1px solid #333;
-  color: #aaa;
+  border-top:1px solid #333;
+  padding:35px 0;
+  color:var(--gray);
+  text-align:center;
+  font-size:13px;
+}
+@media(max-width:700px) {
+  .navlinks {gap:12px;font-size:12px}
+  .logo {font-size:21px}
+  .navlinks .hide-mobile {display:none}
+  .hero {min-height:620px;background-position:60% center}
+  .hero-content {padding:80px 0}
+  .cards,.about-grid,.gallery-grid,.contact-grid {
+    grid-template-columns:1fr;
+  }
+  section {padding:75px 0}
+  .about-grid img {height:300px}
+  .gallery-grid img {height:280px}
 }
 </style>
 </head>
+
 <body>
 
 <header>
-  <div class="logo">ROYAL BARBER</div>
-  <nav><a href="#services">Services</a><a href="#contact">Kontakt</a></nav>
+<nav class="container">
+  <a href="#" class="logo">ROYAL BARBER.</a>
+  <div class="navlinks">
+    <a href="#leistungen">Leistungen</a>
+    <a href="#ueber-uns" class="hide-mobile">Über uns</a>
+    <a href="#galerie" class="hide-mobile">Galerie</a>
+    <a href="#kontakt">Kontakt</a>
+  </div>
+</nav>
 </header>
 
+<main>
 <div class="hero">
-  <p>STYLE • CLASS • PRECISION</p>
-  <h1>YOUR STYLE.<br><span>YOUR IDENTITY.</span></h1>
-  <p>Dein Barbershop für den perfekten Look.</p>
-  <a class="btn" href="#contact">TERMIN ANFRAGEN</a>
+<div class="container hero-content">
+  <div class="eyebrow">STIL · HANDWERK · PERFEKTION</div>
+  <h1>Dein Stil.<br><span class="gold">Deine Identität.</span></h1>
+  <p>Mehr als ein Haarschnitt. Erlebe professionelle Herrenpflege, präzise Schnitte und einen Look, der zu dir passt.</p>
+  <a href="#kontakt" class="btn">TERMIN ANFRAGEN →</a>
+</div>
 </div>
 
-<section id="services">
-  <h2>Unsere Services</h2>
-  <div class="services">
-    <div class="service">
-      <h3>Herrenhaarschnitt</h3>
-      <p>Präzise und individuell.</p>
-      <div class="price">25 €</div>
+<section class="services" id="leistungen">
+<div class="container">
+  <div class="eyebrow">UNSERE HANDWERKSKUNST</div>
+  <h2 class="section-title">Unsere Leistungen</h2>
+  <p class="subtitle">Präzision und Qualität bei jedem Schnitt.</p>
+
+  <div class="cards">
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=700" alt="Moderner Herrenhaarschnitt">
+      <div class="card-body">
+        <h3>Herrenhaarschnitt</h3>
+        <p>Individueller Schnitt mit professionellem Finish.</p>
+        <div class="price">25 €</div>
+      </div>
     </div>
-    <div class="service">
-      <h3>Bartrasur</h3>
-      <p>Konturen und gepflegter Bart.</p>
-      <div class="price">15 €</div>
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=700" alt="Bartpflege">
+      <div class="card-body">
+        <h3>Bartpflege</h3>
+        <p>Konturen, Form und professionelle Bartpflege.</p>
+        <div class="price">15 €</div>
+      </div>
     </div>
-    <div class="service">
-      <h3>Hair & Beard</h3>
-      <p>Das komplette Styling.</p>
-      <div class="price">35 €</div>
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=700" alt="Fade Haarschnitt">
+      <div class="card-body">
+        <h3>Skin Fade</h3>
+        <p>Saubere Übergänge und präzise Details.</p>
+        <div class="price">30 €</div>
+      </div>
     </div>
   </div>
+</div>
 </section>
 
-<section id="contact">
-  <h2>Buche deinen Termin</h2>
-  <p>Wir freuen uns auf deinen Besuch!</p>
-  <a class="btn" href="tel:+491234567890">JETZT ANRUFEN</a>
+<section id="ueber-uns">
+<div class="container about-grid">
+  <img src="https://images.unsplash.com/photo-1512690459411-b9245aed614b?w=900" alt="Barbershop Innenraum">
+  <div class="about-text">
+    <div class="eyebrow">WILLKOMMEN BEI ROYAL BARBER</div>
+    <h2 class="section-title">Tradition trifft modernen Stil.</h2>
+    <p>Bei uns stehen Qualität, Präzision und dein persönlicher Stil im Mittelpunkt. Wir nehmen uns Zeit für jeden Kunden und sorgen dafür, dass du unseren Barbershop mit einem perfekten Look verlässt.</p>
+    <a href="#kontakt" class="btn">LERN UNS KENNEN</a>
+  </div>
+</div>
 </section>
+
+<section class="gallery" id="galerie">
+<div class="container">
+  <div class="eyebrow">UNSERE ARBEIT</div>
+  <h2 class="section-title">Das Ergebnis spricht für sich.</h2>
+  <p class="subtitle">Inspiration für deinen nächsten Look.</p>
+  <div class="gallery-grid">
+    <img src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=700" alt="Herrenfrisur">
+    <img src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=700" alt="Barbier Arbeit">
+    <img src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=700" alt="Barbershop">
+  </div>
+</div>
+</section>
+
+<section class="booking">
+<div class="container">
+  <div class="eyebrow">DEIN NEUER LOOK WARTET</div>
+  <h2 class="section-title">Bereit für deinen Termin?</h2>
+  <p>Kontaktiere uns und vereinbare deinen persönlichen Termin. Wir freuen uns auf dich.</p>
+  <a href="#kontakt" class="btn">JETZT TERMIN ANFRAGEN</a>
+</div>
+</section>
+
+<section id="kontakt">
+<div class="container">
+  <div class="eyebrow">WIR SIND FÜR DICH DA</div>
+  <h2 class="section-title">Besuch uns.</h2>
+  <p class="subtitle">Alle wichtigen Informationen auf einen Blick.</p>
+
+  <div class="contact-grid">
+    <div class="contact-box">
+      <h3>Adresse</h3>
+      <p>Musterstraße 1<br>34414 Warburg</p>
+    </div>
+    <div class="contact-box">
+      <h3>Öffnungszeiten</h3>
+      <p>Montag – Freitag: 09–18 Uhr<br>Samstag: 09–14 Uhr<br>Sonntag: Geschlossen</p>
+    </div>
+    <div class="contact-box">
+      <h3>Kontakt</h3>
+      <p>Telefon: 0123 456789<br>E-Mail: info@royalbarber.de</p>
+    </div>
+  </div>
+</div>
+</section>
+</main>
 
 <footer>
-  © 2026 Royal Barber | Demo-Website
+<div class="container">
+  © 2026 Royal Barber · Alle Rechte vorbehalten
+</div>
 </footer>
 
 </body>
