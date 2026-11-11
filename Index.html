@@ -1,0 +1,112 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Barber | Barbershop</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #111;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+header {
+  padding: 25px 8%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #333;
+}
+.logo { color: #d5ad65; font-size: 23px; font-weight: bold; }
+nav a { color: white; text-decoration: none; margin-left: 20px; }
+.hero {
+  min-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 30px;
+  background: linear-gradient(135deg,#111,#29231b);
+}
+.hero p { color: #d5ad65; letter-spacing: 4px; }
+h1 { font-size: clamp(42px,8vw,85px); margin: 15px 0; }
+h1 span { color: #d5ad65; }
+.btn {
+  background: #d5ad65;
+  color: #111;
+  padding: 16px 28px;
+  text-decoration: none;
+  font-weight: bold;
+  margin-top: 20px;
+}
+section { padding: 65px 8%; text-align: center; }
+h2 { color: #d5ad65; font-size: 32px; }
+.services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  gap: 20px;
+}
+.service {
+  border: 1px solid #444;
+  padding: 30px 15px;
+}
+.price { color: #d5ad65; font-size: 22px; }
+footer {
+  text-align: center;
+  padding: 30px;
+  border-top: 1px solid #333;
+  color: #aaa;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ROYAL BARBER</div>
+  <nav><a href="#services">Services</a><a href="#contact">Kontakt</a></nav>
+</header>
+
+<div class="hero">
+  <p>STYLE • CLASS • PRECISION</p>
+  <h1>YOUR STYLE.<br><span>YOUR IDENTITY.</span></h1>
+  <p>Dein Barbershop für den perfekten Look.</p>
+  <a class="btn" href="#contact">TERMIN ANFRAGEN</a>
+</div>
+
+<section id="services">
+  <h2>Unsere Services</h2>
+  <div class="services">
+    <div class="service">
+      <h3>Herrenhaarschnitt</h3>
+      <p>Präzise und individuell.</p>
+      <div class="price">25 €</div>
+    </div>
+    <div class="service">
+      <h3>Bartrasur</h3>
+      <p>Konturen und gepflegter Bart.</p>
+      <div class="price">15 €</div>
+    </div>
+    <div class="service">
+      <h3>Hair & Beard</h3>
+      <p>Das komplette Styling.</p>
+      <div class="price">35 €</div>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <h2>Buche deinen Termin</h2>
+  <p>Wir freuen uns auf deinen Besuch!</p>
+  <a class="btn" href="tel:+491234567890">JETZT ANRUFEN</a>
+</section>
+
+<footer>
+  © 2026 Royal Barber | Demo-Website
+</footer>
+
+</body>
+</html>
