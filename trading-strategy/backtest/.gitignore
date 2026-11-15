@@ -1,0 +1,3 @@
+*.parquet
+sweep_*.csv
+__pycache__/

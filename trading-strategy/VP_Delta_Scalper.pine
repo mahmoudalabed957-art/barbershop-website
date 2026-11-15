@@ -1,0 +1,252 @@
+//@version=6
+// ============================================================================
+// VP + Delta Scalper  (Volume / Volume Profile / Footprint-Delta)
+// 5 Versionen wählbar. Getestet im Python-Nachbau auf BTCUSDT 3m/5m 2025–2026:
+// KEINE Version war nach Gebühren in der Prüfphase (2026) profitabel.
+// Nur zu Test- und Lernzwecken – kein Finanzrat. Erst im Strategy Tester prüfen!
+// ============================================================================
+strategy("VP + Delta Scalper", shorttitle = "VPDS", overlay = true,
+     initial_capital = 10000, currency = currency.USD,
+     commission_type = strategy.commission.percent, commission_value = 0.04,
+     slippage = 1, max_bars_back = 5000, pyramiding = 0)
+
+// ---------- Inputs ----------
+grpG = "Allgemein"
+version  = input.string("V2 Breakout-Retest", "Version", options = ["V1 Rejection", "V2 Breakout-Retest", "V3 Regime (Open-Lage)", "V4 80%-Regel", "V5 Fehlausbruch"], group = grpG)
+ltf      = input.timeframe("1", "Delta: Intrabar-Zeiteinheit (kleiner als Chart!)", group = grpG)
+sess     = input.session("0700-2000", "Handelszeit (UTC)", group = grpG)
+riskPct  = input.float(1.0, "Risiko pro Trade %", minval = 0.1, step = 0.1, group = grpG)
+maxLev   = input.float(5.0, "Max. Hebel (Positionsgröße-Deckel)", minval = 1, group = grpG)
+maxTrDay = input.int(4, "Max. Trades pro Tag", minval = 1, group = grpG)
+dayLossR = input.float(2.0, "Tagesverlust-Limit (in R)", minval = 0.5, step = 0.5, group = grpG)
+
+grpP = "Volume Profile (Vortag)"
+rows  = input.int(100, "Zeilen", minval = 20, maxval = 300, group = grpP)
+vaPct = input.float(0.70, "Value Area %", minval = 0.5, maxval = 0.95, step = 0.05, group = grpP)
+
+grpV = "Volume / Delta"
+rvolLen = input.int(20, "RVOL Länge", group = grpV)
+atrLen  = input.int(14, "ATR Länge", group = grpV)
+
+grpR = "Risiko & Exits"
+stopBuf    = input.float(0.3, "Stop-Puffer (x ATR)", step = 0.1, group = grpR)
+minRiskPct = input.float(0.3, "Min. Stop-Abstand % (Gebühren!)", step = 0.05, group = grpR)
+maxBars    = input.int(48, "Zeit-Stop (Bars)", group = grpR)
+
+grp1 = "V1 / V4 / V5"
+v1Dr      = input.float(0.2, "Min. Delta-Ratio", step = 0.05, group = grp1)
+v1Absorb  = input.float(1.5, "Absorption: RVOL ab", step = 0.1, group = grp1)
+v1RvolMin = input.float(0.8, "Min. RVOL", step = 0.1, group = grp1)
+v1MinRR   = input.float(1.5, "Min. CRV bis Ziel-Level", step = 0.1, group = grp1)
+v1Cpos    = input.float(0.5, "Close-Position in Kerze (0-1)", step = 0.1, group = grp1)
+
+grp2 = "V2 / V3 Breakout"
+boRvol    = input.float(1.5, "Ausbruch: Min. RVOL", step = 0.1, group = grp2)
+boDr      = input.float(0.3, "Ausbruch: Min. Delta-Ratio", step = 0.05, group = grp2)
+armBars   = input.int(24, "Retest-Fenster / Lookback (Bars)", group = grp2)
+retestBuf = input.float(0.1, "Retest-Puffer (x ATR)", step = 0.05, group = grp2)
+v2RR      = input.float(3.0, "Ziel CRV", step = 0.5, group = grp2)
+
+grpD = "Anzeige"
+showLv  = input.bool(true, "POC / VAH / VAL zeigen", group = grpD)
+colorDl = input.bool(false, "Kerzen nach Delta färben", group = grpD)
+
+// ---------- Delta aus Intrabar-Daten (Footprint-Annäherung) ----------
+// Gleiche Logik wie ta.requestUpAndDownVolume: close>open = Kauf, close<open = Verkauf,
+// sonst Vergleich mit vorherigem Close, sonst letzte Richtung.
+[ltfO, ltfC, ltfV] = request.security_lower_tf(syminfo.tickerid, ltf, [open, close, volume])
+var float lastDir = 1.0
+var float lastLtfC = na
+float delta = 0.0
+int nIb = array.size(ltfV)
+if nIb > 0
+    for j = 0 to nIb - 1
+        float io = array.get(ltfO, j)
+        float ic = array.get(ltfC, j)
+        float dir = ic > io ? 1.0 : ic < io ? -1.0 : na(lastLtfC) ? lastDir : ic > lastLtfC ? 1.0 : ic < lastLtfC ? -1.0 : lastDir
+        lastDir := dir
+        lastLtfC := ic
+        delta += dir * array.get(ltfV, j)
+float dr   = volume > 0 ? delta / volume : 0.0
+float rvol = volume / ta.sma(volume, rvolLen)
+float atr  = ta.atr(atrLen)
+float rng  = high - low
+float cpos = rng > 0 ? (close - low) / rng : 0.5
+
+// ---------- Volume Profile des Vortags ----------
+var array<float> dH = array.new<float>()
+var array<float> dL = array.new<float>()
+var array<float> dV = array.new<float>()
+var float poc = na
+var float vah = na
+var float val = na
+var int dayOpenLoc = 0
+var int armL = -1000000
+var int armS = -1000000
+var bool reentL = false
+var bool reentS = false
+var int dayTrades = 0
+var float dayStartNet = 0.0
+
+bool newDay = timeframe.change("D")
+if newDay
+    if array.size(dV) > 0
+        float lo = array.min(dL)
+        float hi = array.max(dH)
+        float step = hi > lo ? (hi - lo) / rows : 1.0
+        array<float> pv = array.new<float>(rows, 0.0)
+        for k = 0 to array.size(dV) - 1
+            int a = math.min(int((array.get(dL, k) - lo) / step), rows - 1)
+            int b = math.min(int((array.get(dH, k) - lo) / step), rows - 1)
+            float share = array.get(dV, k) / (b - a + 1)
+            for r = a to b
+                array.set(pv, r, array.get(pv, r) + share)
+        int p = array.indexof(pv, array.max(pv))
+        int up = p
+        int dn = p
+        float acc = array.get(pv, p)
+        float tot = array.sum(pv)
+        while acc < vaPct * tot and (up < rows - 1 or dn > 0)
+            float vu = up < rows - 1 ? array.get(pv, up + 1) : -1.0
+            float vd = dn > 0 ? array.get(pv, dn - 1) : -1.0
+            if vu >= vd
+                up += 1
+                acc += vu
+            else
+                dn -= 1
+                acc += vd
+        poc := lo + (p + 0.5) * step
+        vah := lo + (up + 1) * step
+        val := lo + dn * step
+    array.clear(dH)
+    array.clear(dL)
+    array.clear(dV)
+    dayOpenLoc := na(vah) ? 0 : open > vah ? 1 : open < val ? -1 : 0
+    armL := -1000000
+    armS := -1000000
+    reentL := false
+    reentS := false
+    dayTrades := 0
+    dayStartNet := strategy.netprofit
+array.push(dH, high)
+array.push(dL, low)
+array.push(dV, volume)
+
+// ---------- Ausbruchs-Erkennung ----------
+bool haveLv = not na(vah)
+if haveLv and close > vah and close[1] <= vah and rvol >= boRvol and dr >= boDr
+    armL := bar_index
+if haveLv and close < val and close[1] >= val and rvol >= boRvol and dr <= -boDr
+    armS := bar_index
+
+// ---------- Filter ----------
+bool inSess   = not na(time(timeframe.period, sess, "UTC"))
+float riskMny = strategy.equity * riskPct / 100
+float dayR    = (strategy.netprofit - dayStartNet) / riskMny
+bool canTrade = haveLv and inSess and strategy.position_size == 0 and dayTrades < maxTrDay and dayR > -dayLossR and not na(rvol)
+
+// ---------- Setups ----------
+// V1 Rejection
+bool v1L = rvol >= v1RvolMin and low <= val and close > val and close < poc and cpos >= v1Cpos and (dr >= v1Dr or (dr < 0 and rvol >= v1Absorb))
+bool v1S = rvol >= v1RvolMin and high >= vah and close < vah and close > poc and cpos <= 1 - v1Cpos and (dr <= -v1Dr or (dr > 0 and rvol >= v1Absorb))
+// V2 Breakout-Retest
+float buf = retestBuf * atr
+bool inArmL = bar_index - armL > 0 and bar_index - armL <= armBars
+bool inArmS = bar_index - armS > 0 and bar_index - armS <= armBars
+bool rtL = low <= vah + buf and close > vah and dr > 0
+bool rtS = high >= val - buf and close < val and dr < 0
+// V4 80%-Regel
+bool v4L = dayOpenLoc == -1 and not reentL and close > val and close[1] > val and dr > 0
+bool v4S = dayOpenLoc == 1 and not reentS and close < vah and close[1] < vah and dr < 0
+// V5 Fehlausbruch
+float hh = ta.highest(high, armBars + 1)
+float ll = ta.lowest(low, armBars + 1)
+bool v5S = hh > vah and close < vah and close[1] >= vah and dr <= -v1Dr and rvol >= v1RvolMin
+bool v5L = ll < val and close > val and close[1] <= val and dr >= v1Dr and rvol >= v1RvolMin
+
+// Auswahl: dir, Stop, Ziel (Level oder CRV)
+int   sDir  = 0
+float sStop = na
+float sTgt  = na
+float sRR   = na      // bei Level-Ziel: Mindest-CRV; bei CRV-Ziel: Ziel-CRV
+bool  sLvl  = true
+if version == "V1 Rejection" or (version == "V3 Regime (Open-Lage)" and dayOpenLoc == 0)
+    if v1L
+        sDir := 1
+        sStop := low - stopBuf * atr
+        sTgt := poc
+        sRR := v1MinRR
+    else if v1S
+        sDir := -1
+        sStop := high + stopBuf * atr
+        sTgt := poc
+        sRR := v1MinRR
+bool v2Mode = version == "V2 Breakout-Retest" or version == "V3 Regime (Open-Lage)"
+if sDir == 0 and v2Mode
+    bool okL = version == "V2 Breakout-Retest" or dayOpenLoc == 0 ? inArmL : dayOpenLoc == 1
+    bool okS = version == "V2 Breakout-Retest" or dayOpenLoc == 0 ? inArmS : dayOpenLoc == -1
+    if okL and rtL
+        sDir := 1
+        sStop := math.min(low, vah) - stopBuf * atr
+        sRR := v2RR
+        sLvl := false
+    else if okS and rtS
+        sDir := -1
+        sStop := math.max(high, val) + stopBuf * atr
+        sRR := v2RR
+        sLvl := false
+if version == "V4 80%-Regel"
+    if v4L
+        reentL := true
+        sDir := 1
+        sStop := math.min(low, low[1]) - stopBuf * atr
+        sTgt := vah
+        sRR := v1MinRR
+    else if v4S
+        reentS := true
+        sDir := -1
+        sStop := math.max(high, high[1]) + stopBuf * atr
+        sTgt := val
+        sRR := v1MinRR
+if version == "V5 Fehlausbruch"
+    if v5S
+        sDir := -1
+        sStop := hh + stopBuf * atr
+        sTgt := poc
+        sRR := v1MinRR
+    else if v5L
+        sDir := 1
+        sStop := ll - stopBuf * atr
+        sTgt := poc
+        sRR := v1MinRR
+
+// ---------- Orders ----------
+var int entryBar = na
+if canTrade and sDir != 0
+    float risk = (close - sStop) * sDir
+    bool ok = risk > 0 and risk / close * 100 >= minRiskPct
+    float tgt = sLvl ? sTgt : close + sDir * sRR * risk
+    if ok and sLvl
+        ok := (sTgt - close) * sDir >= sRR * risk
+    if ok
+        float qty = math.min(riskMny / risk, strategy.equity * maxLev / close)
+        if sDir == 1
+            strategy.entry("L", strategy.long, qty = qty)
+            strategy.exit("XL", "L", stop = sStop, limit = tgt)
+        else
+            strategy.entry("S", strategy.short, qty = qty)
+            strategy.exit("XS", "S", stop = sStop, limit = tgt)
+        dayTrades += 1
+        entryBar := bar_index
+
+// Zeit-Stop & Tageswechsel
+if strategy.position_size != 0 and (bar_index - entryBar >= maxBars or newDay)
+    strategy.close_all(comment = "Zeit/Tag")
+
+// ---------- Anzeige ----------
+plot(showLv ? poc : na, "POC (Vortag)", color = color.orange, style = plot.style_stepline, linewidth = 2)
+plot(showLv ? vah : na, "VAH (Vortag)", color = color.teal, style = plot.style_stepline)
+plot(showLv ? val : na, "VAL (Vortag)", color = color.teal, style = plot.style_stepline)
+plotshape(canTrade and sDir == 1, "Long-Signal", shape.triangleup, location.belowbar, color.green, size = size.tiny)
+plotshape(canTrade and sDir == -1, "Short-Signal", shape.triangledown, location.abovebar, color.red, size = size.tiny)
+barcolor(colorDl ? (dr > 0.25 ? color.lime : dr < -0.25 ? color.fuchsia : color.gray) : na)
