@@ -1,21 +1,23 @@
 //@version=6
 // ============================================================================
 // VP + Delta Scalper  (Volume / Volume Profile / Footprint-Delta)
-// 5 Versionen wählbar. Getestet im Python-Nachbau auf BTCUSDT 3m/5m 2025–2026:
-// KEINE Version war nach Gebühren in der Prüfphase (2026) profitabel.
+// 5 Versionen wählbar. Standardwerte = beste getestete Einstellung:
+// GOLD (XAUUSD) 5-Min-Chart, V1 Rejection, Einstiege 8–12 Uhr New York.
+// Backtest (Python-Nachbau) 2024–Nov 2026: 147 Trades, PF 1,6, +0,38 R/Trade.
+// Auf GC-Futures (Jan–Apr 2026, nur 6 Trades) NICHT bestätigt. BTC/Nasdaq: kein Vorteil.
 // Nur zu Test- und Lernzwecken – kein Finanzrat. Erst im Strategy Tester prüfen!
 // ============================================================================
 strategy("VP + Delta Scalper", shorttitle = "VPDS", overlay = true,
      initial_capital = 10000, currency = currency.USD,
-     commission_type = strategy.commission.cash_per_contract, commission_value = 2.5,
+     commission_type = strategy.commission.percent, commission_value = 0.005,
      slippage = 1, max_bars_back = 5000, pyramiding = 0)
 
 // ---------- Inputs ----------
 grpG = "Allgemein"
-version  = input.string("V2 Breakout-Retest", "Version", options = ["V1 Rejection", "V2 Breakout-Retest", "V3 Regime (Open-Lage)", "V4 80%-Regel", "V5 Fehlausbruch"], group = grpG)
+version  = input.string("V1 Rejection", "Version", options = ["V1 Rejection", "V2 Breakout-Retest", "V3 Regime (Open-Lage)", "V4 80%-Regel", "V5 Fehlausbruch"], group = grpG)
 ltf      = input.timeframe("1", "Delta: Intrabar-Zeiteinheit (kleiner als Chart!)", group = grpG)
 sessTz   = input.string("America/New_York", "Zeitzone", options = ["America/New_York", "UTC", "Europe/Berlin"], group = grpG)
-sessFrom = input.float(9.5, "Einstiege ab (Stunde, 9.5 = 9:30)", step = 0.5, group = grpG)
+sessFrom = input.float(8.0, "Einstiege ab (Stunde, 9.5 = 9:30)", step = 0.5, group = grpG)
 sessTo   = input.float(12.0, "Einstiege bis (Stunde)", step = 0.5, group = grpG)
 flatAft  = input.float(1.0, "Flat x Stunden nach Einstiegsende", step = 0.5, group = grpG)
 riskPct  = input.float(1.0, "Risiko pro Trade %", minval = 0.1, step = 0.1, group = grpG)
@@ -32,15 +34,15 @@ rvolLen = input.int(20, "RVOL Länge", group = grpV)
 atrLen  = input.int(14, "ATR Länge", group = grpV)
 
 grpR = "Risiko & Exits"
-stopBuf    = input.float(0.3, "Stop-Puffer (x ATR)", step = 0.1, group = grpR)
-minRiskPct = input.float(0.3, "Min. Stop-Abstand % (Gebühren!)", step = 0.05, group = grpR)
-maxBars    = input.int(48, "Zeit-Stop (Bars)", group = grpR)
+stopBuf    = input.float(0.1, "Stop-Puffer (x ATR)", step = 0.1, group = grpR)
+minRiskPct = input.float(0.1, "Min. Stop-Abstand % (Gebühren!)", step = 0.05, group = grpR)
+maxBars    = input.int(24, "Zeit-Stop (Bars)", group = grpR)
 
 grp1 = "V1 / V4 / V5"
-v1Dr      = input.float(0.2, "Min. Delta-Ratio", step = 0.05, group = grp1)
+v1Dr      = input.float(0.1, "Min. Delta-Ratio", step = 0.05, group = grp1)
 v1Absorb  = input.float(1.5, "Absorption: RVOL ab", step = 0.1, group = grp1)
 v1RvolMin = input.float(0.8, "Min. RVOL", step = 0.1, group = grp1)
-v1MinRR   = input.float(1.5, "Min. CRV bis Ziel-Level", step = 0.1, group = grp1)
+v1MinRR   = input.float(2.0, "Min. CRV bis Ziel-Level", step = 0.1, group = grp1)
 v1Cpos    = input.float(0.5, "Close-Position in Kerze (0-1)", step = 0.1, group = grp1)
 
 grp2 = "V2 / V3 Breakout"
