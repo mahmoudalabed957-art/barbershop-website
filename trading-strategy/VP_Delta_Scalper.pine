@@ -7,14 +7,17 @@
 // ============================================================================
 strategy("VP + Delta Scalper", shorttitle = "VPDS", overlay = true,
      initial_capital = 10000, currency = currency.USD,
-     commission_type = strategy.commission.percent, commission_value = 0.04,
+     commission_type = strategy.commission.cash_per_contract, commission_value = 2.5,
      slippage = 1, max_bars_back = 5000, pyramiding = 0)
 
 // ---------- Inputs ----------
 grpG = "Allgemein"
 version  = input.string("V2 Breakout-Retest", "Version", options = ["V1 Rejection", "V2 Breakout-Retest", "V3 Regime (Open-Lage)", "V4 80%-Regel", "V5 Fehlausbruch"], group = grpG)
 ltf      = input.timeframe("1", "Delta: Intrabar-Zeiteinheit (kleiner als Chart!)", group = grpG)
-sess     = input.session("0700-2000", "Handelszeit (UTC)", group = grpG)
+sessTz   = input.string("America/New_York", "Zeitzone", options = ["America/New_York", "UTC", "Europe/Berlin"], group = grpG)
+sessFrom = input.float(9.5, "Einstiege ab (Stunde, 9.5 = 9:30)", step = 0.5, group = grpG)
+sessTo   = input.float(12.0, "Einstiege bis (Stunde)", step = 0.5, group = grpG)
+flatAft  = input.float(1.0, "Flat x Stunden nach Einstiegsende", step = 0.5, group = grpG)
 riskPct  = input.float(1.0, "Risiko pro Trade %", minval = 0.1, step = 0.1, group = grpG)
 maxLev   = input.float(5.0, "Max. Hebel (Positionsgröße-Deckel)", minval = 1, group = grpG)
 maxTrDay = input.int(4, "Max. Trades pro Tag", minval = 1, group = grpG)
@@ -140,7 +143,8 @@ if haveLv and close < val and close[1] >= val and rvol >= boRvol and dr <= -boDr
     armS := bar_index
 
 // ---------- Filter ----------
-bool inSess   = not na(time(timeframe.period, sess, "UTC"))
+float hNow    = hour(time, sessTz) + minute(time, sessTz) / 60.0
+bool inSess   = hNow >= sessFrom and hNow < sessTo
 float riskMny = strategy.equity * riskPct / 100
 float dayR    = (strategy.netprofit - dayStartNet) / riskMny
 bool canTrade = haveLv and inSess and strategy.position_size == 0 and dayTrades < maxTrDay and dayR > -dayLossR and not na(rvol)
@@ -228,8 +232,14 @@ if canTrade and sDir != 0
     float tgt = sLvl ? sTgt : close + sDir * sRR * risk
     if ok and sLvl
         ok := (sTgt - close) * sDir >= sRR * risk
+    float pv  = syminfo.pointvalue
+    float qty = 0.0
     if ok
-        float qty = math.min(riskMny / risk, strategy.equity * maxLev / close)
+        qty := math.min(riskMny / (risk * pv), strategy.equity * maxLev / (close * pv))
+        if syminfo.type == "futures"
+            qty := math.floor(qty)      // nur ganze Kontrakte
+        ok := qty > 0
+    if ok
         if sDir == 1
             strategy.entry("L", strategy.long, qty = qty)
             strategy.exit("XL", "L", stop = sStop, limit = tgt)
@@ -240,7 +250,7 @@ if canTrade and sDir != 0
         entryBar := bar_index
 
 // Zeit-Stop & Tageswechsel
-if strategy.position_size != 0 and (bar_index - entryBar >= maxBars or newDay)
+if strategy.position_size != 0 and (bar_index - entryBar >= maxBars or newDay or hNow >= sessTo + flatAft)
     strategy.close_all(comment = "Zeit/Tag")
 
 // ---------- Anzeige ----------

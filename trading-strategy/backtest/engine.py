@@ -13,13 +13,13 @@ DEF = dict(
     bo_rvol=1.5, bo_dr=0.25, arm_bars=12, retest_buf=0.1, v2_rr=2.0,
     stop_buf=0.1, min_risk_pct=0.10, max_bars=36,
     max_trades_day=4, day_loss_r=-2.0,
-    fee=0.0004, slip=0.0001,
+    fee=0.0004, slip=0.0001, cost_abs=0.0, flat_after=2,
 )
 
-def profiles(df, rows, va_pct):
+def profiles(df, days, rows, va_pct):
     """POC/VAH/VAL je UTC-Tag; Volumen jedes Bars gleichmäßig über seine Range verteilt."""
     out = {}
-    for day, g in df.groupby(df.index.floor("D")):
+    for day, g in df.groupby(days):
         lo, hi = g.low.min(), g.high.max()
         step = (hi - lo) / rows if hi > lo else 1.0
         vol = np.zeros(rows)
@@ -37,12 +37,12 @@ def profiles(df, rows, va_pct):
 
 def run(df, **kw):
     P = {**DEF, **kw}
-    prof = profiles(df, P["rows"], P["va_pct"])
-    days = df.index.floor("D")
+    days = pd.DatetimeIndex(df["day"]) if "day" in df else df.index.floor("D")
+    prof = profiles(df, days, P["rows"], P["va_pct"])
     ud = days.unique()
     prev = {ud[i]: prof[ud[i - 1]] for i in range(1, len(ud))}
     o, h, l, c, v, dl = (df[k].values for k in ("open", "high", "low", "close", "volume", "delta"))
-    hour = df.index.hour.values
+    hour = df["hr"].values if "hr" in df else df.index.hour.values
     rvol = (df.volume / df.volume.rolling(P["rvol_len"]).mean()).values
     dr = np.where(v > 0, dl / np.where(v > 0, v, 1), 0)
     tr = np.maximum(df.high - df.low, np.maximum((df.high - df.close.shift()).abs(), (df.low - df.close.shift()).abs()))
@@ -68,7 +68,7 @@ def run(df, **kw):
             elif ok:
                 tgt = e + dirn * rr * risk
             if ok:
-                pos = dict(dir=dirn, entry=e, stop=stop, tgt=tgt, risk=risk, i0=i, t=df.index[i]); day_n += 1
+                pos = dict(dir=dirn, entry=e, stop=stop, tgt=tgt, risk=risk, i0=i, t=df.index[i], day=dv[i]); day_n += 1
         pending = None
         # 2) Position managen
         if pos is not None:
@@ -77,10 +77,10 @@ def run(df, **kw):
             hit_tgt = h[i] >= pos["tgt"] if dirn > 0 else l[i] <= pos["tgt"]
             if hit_stop: ex = pos["stop"] if (o[i] - pos["stop"]) * dirn > 0 else o[i]
             elif hit_tgt: ex = pos["tgt"] if (pos["tgt"] - o[i]) * dirn > 0 else o[i]
-            elif i - pos["i0"] >= P["max_bars"] or hour[i] >= P["sess_end"] + 2 or days[i] != pos["t"].floor("D"):
+            elif i - pos["i0"] >= P["max_bars"] or hour[i] >= P["sess_end"] + P["flat_after"] or dv[i] != pos["day"]:
                 ex = c[i]
             if ex is not None:
-                cost = (pos["entry"] + ex) * (P["fee"] + P["slip"])
+                cost = (pos["entry"] + ex) * (P["fee"] + P["slip"]) + 2 * P["cost_abs"]
                 r = ((ex - pos["entry"]) * dirn - cost) / pos["risk"]
                 trades.append(dict(t=pos["t"], dir=dirn, r=r, bars=i - pos["i0"], ver=pos.get("v")))
                 day_r += r; pos = None
