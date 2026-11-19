@@ -1,0 +1,239 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════
+//  M-Muster + RSI-Divergenz  (Short nach langem Aufwärtstrend)
+// ───────────────────────────────────────────────────────────────────────
+//  Regeln:
+//   1. Vorher eine lange Aufwärtsbewegung.
+//   2. Der Preis bildet ein M: Hoch 1 ist NICHT höher als Hoch 2.
+//   3. Beim RSI ist es umgekehrt: RSI an Hoch 1 ist HÖHER als an Hoch 2
+//      (Käufer werden schwächer, Verkäufer übernehmen).
+//   4. Ausbruch: Schlusskurs unter dem Tief des V (Nackenlinie).
+//   5. Retest: Der Preis läuft von unten zurück an die Nackenlinie.
+//   6. Einstieg: Danach schließt eine rote Kerze unter der Nackenlinie.
+//   TP = tiefstes Tief der Aufwärtsbewegung vor dem M
+//   SL = Hoch 2 + 1 Tick
+//  Optional: W-Muster (Long) als Spiegelbild.
+// ═══════════════════════════════════════════════════════════════════════
+indicator("M-Muster + RSI-Divergenz", shorttitle = "M+RSI", overlay = true, max_bars_back = 1000, max_lines_count = 500, max_labels_count = 500)
+
+// ───── Eingaben ─────
+grpP = "Muster"
+pivLen         = input.int(5, "Pivot-Stärke (Kerzen links/rechts)", minval = 2, maxval = 20, group = grpP, tooltip = "Wie ausgeprägt ein Hoch/Tief sein muss. Größer = nur deutliche Spitzen.")
+trendLen       = input.int(100, "Rückblick Aufwärtstrend (Kerzen)", minval = 10, maxval = 400, group = grpP, tooltip = "In diesem Bereich vor Hoch 1 wird das tiefste Tief gesucht (= Trendstart = TP).")
+minTrendAtr    = input.float(4.0, "Min. Länge des Aufwärtstrends (x ATR)", minval = 0, step = 0.5, group = grpP, tooltip = "Wie lang die Aufwärtsbewegung vor dem M mindestens sein muss, in ATR gemessen.")
+maxPatternBars = input.int(60, "Max. Kerzen zwischen Hoch 1 und Hoch 2", minval = 3, maxval = 300, group = grpP)
+maxWaitBars    = input.int(50, "Max. Kerzen bis Ausbruch + Retest", minval = 5, maxval = 500, group = grpP)
+retestTolAtr   = input.float(0.25, "Retest-Toleranz (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Wie nah der Preis von unten an die Nackenlinie kommen muss, damit es als Retest zählt.")
+showLong       = input.bool(false, "W-Muster (Long) auch suchen", group = grpP, tooltip = "Spiegelbild: W nach langem Abwärtstrend, zweites Tief tiefer, RSI am zweiten Tief höher.")
+
+grpR = "RSI"
+rsiLen     = input.int(14, "RSI-Länge", minval = 2, group = grpR)
+rsiSrc     = input.source(close, "RSI-Quelle", group = grpR)
+minRsiDiff = input.float(1.0, "Min. RSI-Unterschied zwischen den Hochs", minval = 0, step = 0.5, group = grpR)
+
+grpD = "Anzeige"
+colShort  = input.color(color.red, "Farbe M / Short", group = grpD)
+colLong   = input.color(color.green, "Farbe W / Long", group = grpD)
+colNeck   = input.color(color.orange, "Farbe Nackenlinie", group = grpD)
+showStats = input.bool(true, "Statistik-Tabelle anzeigen", group = grpD)
+
+// ───── Basiswerte ─────
+rsi = ta.rsi(rsiSrc, rsiLen)
+atr = ta.atr(14)
+tol = atr * retestTolAtr
+ph  = ta.pivothigh(high, pivLen, pivLen)
+pl  = ta.pivotlow(low, pivLen, pivLen)
+
+// state: 0 = nichts, 1 = warte auf Ausbruch, 2 = warte auf Retest,
+//        3 = Retest erreicht, warte auf Bestätigungskerze, 4 = im Trade
+type Setup
+    int   dir
+    int   state  = 0
+    float tp
+    float sl
+    float neck
+    int   startB
+    float entry
+    int   entryB
+    line  neckLn
+    line  entryLn
+    line  slLn
+    line  tpLn
+    int   wins   = 0
+    int   losses = 0
+    float sumR   = 0.0
+
+var Setup sShort = Setup.new(dir = -1)
+var Setup sLong  = Setup.new(dir = 1)
+
+// ───── Hilfsfunktionen ─────
+invalidate(Setup s, string why) =>
+    if not na(s.neckLn)
+        s.neckLn.set_color(color.gray)
+        s.neckLn.set_style(line.style_dotted)
+    label.new(bar_index, s.neck, "✕ " + why, style = label.style_label_left, color = color.new(color.gray, 70), textcolor = color.gray, size = size.tiny)
+    s.state := 0
+
+enterTrade(Setup s) =>
+    d = s.dir
+    c = d == -1 ? colShort : colLong
+    s.state   := 4
+    s.entry   := close
+    s.entryB  := bar_index
+    s.entryLn := line.new(bar_index, s.entry, bar_index + 1, s.entry, color = c, width = 2)
+    s.slLn    := line.new(bar_index, s.sl, bar_index + 1, s.sl, color = color.red, style = line.style_dashed)
+    s.tpLn    := line.new(bar_index, s.tp, bar_index + 1, s.tp, color = color.green, style = line.style_dashed)
+    rr  = math.abs(s.entry - s.tp) / math.abs(s.sl - s.entry)
+    txt = (d == -1 ? "SHORT" : "LONG") + "\nEntry " + str.tostring(s.entry, format.mintick) + "\nSL " + str.tostring(s.sl, format.mintick) + "\nTP " + str.tostring(s.tp, format.mintick) + "\nCRV 1:" + str.tostring(rr, "#.##")
+    label.new(bar_index, d == -1 ? high : low, txt, style = d == -1 ? label.style_label_down : label.style_label_up, color = c, textcolor = color.white, size = size.small)
+    alert((d == -1 ? "SHORT" : "LONG") + " " + syminfo.ticker + " nach Retest | Entry " + str.tostring(s.entry, format.mintick) + " | SL " + str.tostring(s.sl, format.mintick) + " | TP " + str.tostring(s.tp, format.mintick), alert.freq_once_per_bar_close)
+
+closeTrade(Setup s, bool win) =>
+    r = win ? math.abs(s.entry - s.tp) / math.abs(s.sl - s.entry) : -1.0
+    if win
+        s.wins += 1
+    else
+        s.losses += 1
+    s.sumR += r
+    px = win ? s.tp : s.sl
+    label.new(bar_index, px, win ? "TP ✓ +" + str.tostring(r, "#.##") + "R" : "SL ✕ -1R", style = label.style_label_left, color = win ? color.new(color.green, 20) : color.new(color.red, 20), textcolor = color.white, size = size.tiny)
+    s.state := 0
+
+// Muster suchen (wird bei jedem neuen bestätigten Hoch/Tief aufgerufen)
+detect(Setup s, float piv, float p1, int b1, float r1) =>
+    if not na(piv) and s.state == 0 and (s.dir == -1 or showLong)
+        if not na(p1)
+            d    = s.dir
+            p2   = piv
+            b2   = bar_index - pivLen
+            r2   = rsi[pivLen]
+            span = b2 - b1
+            // Regel: Hoch 1 nicht höher als Hoch 2 (W: Tief 1 nicht tiefer als Tief 2)
+            bool priceOk = d == -1 ? p1 <= p2 : p1 >= p2
+            // Regel: RSI umgekehrt (Hoch 1 höher, Hoch 2 tiefer)
+            bool rsiOk = d == -1 ? (r1 > r2 and r1 - r2 >= minRsiDiff) : (r2 > r1 and r2 - r1 >= minRsiDiff)
+            if priceOk and rsiOk and span >= 2 and span <= maxPatternBars and b1 - trendLen >= 0
+                // Nackenlinie = tiefster Punkt des V zwischen den beiden Hochs
+                float neck  = d == -1 ? low[pivLen + 1] : high[pivLen + 1]
+                int   neckB = b2 - 1
+                for i = pivLen + 1 to bar_index - b1 - 1
+                    float v = d == -1 ? low[i] : high[i]
+                    if d == -1 ? v < neck : v > neck
+                        neck  := v
+                        neckB := bar_index - i
+                // Trendstart = tiefstes Tief vor Hoch 1
+                int   off1    = bar_index - b1
+                float tStart  = d == -1 ? low[off1 + 1] : high[off1 + 1]
+                int   tStartB = b1 - 1
+                for i = off1 + 1 to off1 + trendLen
+                    float v = d == -1 ? low[i] : high[i]
+                    if d == -1 ? v < tStart : v > tStart
+                        tStart  := v
+                        tStartB := bar_index - i
+                // Hoch 1 muss die Spitze der Aufwärtsbewegung sein
+                bool topOk = true
+                for i = off1 + 1 to bar_index - tStartB
+                    float o = d == -1 ? high[i] : low[i]
+                    if d == -1 ? o > p1 : o < p1
+                        topOk := false
+                bool trendOk = math.abs(p1 - tStart) >= minTrendAtr * atr
+                bool tpOk    = d == -1 ? tStart < neck : tStart > neck
+                if topOk and trendOk and tpOk
+                    c        = d == -1 ? colShort : colLong
+                    lblStyle = d == -1 ? label.style_label_down : label.style_label_up
+                    line.new(tStartB, tStart, b1, p1, color = color.new(c, 70), style = line.style_dashed)
+                    line.new(b1, p1, neckB, neck, color = c, width = 2)
+                    line.new(neckB, neck, b2, p2, color = c, width = 2)
+                    s.neckLn := line.new(neckB, neck, bar_index, neck, color = colNeck, width = 2)
+                    label.new(b1, p1, "1\nRSI " + str.tostring(r1, "#.0"), style = lblStyle, color = color.new(c, 30), textcolor = color.white, size = size.tiny)
+                    label.new(b2, p2, "2\nRSI " + str.tostring(r2, "#.0"), style = lblStyle, color = color.new(c, 30), textcolor = color.white, size = size.tiny)
+                    label.new(tStartB, tStart, "TP-Ziel", style = d == -1 ? label.style_label_up : label.style_label_down, color = color.new(color.green, 30), textcolor = color.white, size = size.tiny)
+                    s.state  := 1
+                    s.tp     := tStart
+                    s.sl     := d == -1 ? p2 + syminfo.mintick : p2 - syminfo.mintick
+                    s.neck   := neck
+                    s.startB := bar_index
+                    // Falls der Ausbruch schon in den letzten Kerzen passiert ist
+                    for i = 0 to pivLen - 1
+                        if d == -1 ? close[i] < neck : close[i] > neck
+                            s.state := 2
+                    alert((d == -1 ? "M-Muster" : "W-Muster") + " mit RSI-Divergenz auf " + syminfo.ticker + " – warte auf Ausbruch und Retest", alert.freq_once_per_bar_close)
+
+// Ablauf: Ausbruch -> Retest -> Einstieg -> TP/SL
+step(Setup s) =>
+    if s.state > 0
+        d = s.dir
+        bool slHit = d == -1 ? high >= s.sl : low <= s.sl
+        bool tpHit = d == -1 ? low <= s.tp : high >= s.tp
+        if s.state == 4
+            s.entryLn.set_x2(bar_index)
+            s.slLn.set_x2(bar_index)
+            s.tpLn.set_x2(bar_index)
+            if bar_index > s.entryB
+                if slHit
+                    closeTrade(s, false)
+                else if tpHit
+                    closeTrade(s, true)
+        else
+            s.neckLn.set_x2(bar_index)
+            if slHit
+                invalidate(s, d == -1 ? "über Hoch 2" : "unter Tief 2")
+            else if bar_index - s.startB > maxWaitBars
+                invalidate(s, "Zeit abgelaufen")
+            else
+                if s.state == 1
+                    if d == -1 ? close < s.neck : close > s.neck
+                        s.state := 2
+                        label.new(bar_index, d == -1 ? low : high, "Ausbruch", style = d == -1 ? label.style_label_up : label.style_label_down, color = color.new(colNeck, 20), textcolor = color.white, size = size.tiny)
+                else if s.state == 2
+                    if tpHit
+                        invalidate(s, "Ziel ohne Retest")
+                    else if d == -1 ? high >= s.neck - tol : low <= s.neck + tol
+                        s.state := 3
+                if s.state == 3
+                    if d == -1 ? close > s.neck + tol : close < s.neck - tol
+                        invalidate(s, "Retest gescheitert")
+                    else if d == -1 ? (close < s.neck and close < open) : (close > s.neck and close > open)
+                        enterTrade(s)
+
+// ───── Hauptlogik ─────
+var float lastPH  = na
+var int   lastPHB = na
+var float lastPHR = na
+var float lastPL  = na
+var int   lastPLB = na
+var float lastPLR = na
+
+step(sShort)
+step(sLong)
+detect(sShort, ph, lastPH, lastPHB, lastPHR)
+detect(sLong, pl, lastPL, lastPLB, lastPLR)
+
+if not na(ph)
+    lastPH  := ph
+    lastPHB := bar_index - pivLen
+    lastPHR := rsi[pivLen]
+if not na(pl)
+    lastPL  := pl
+    lastPLB := bar_index - pivLen
+    lastPLR := rsi[pivLen]
+
+// ───── Statistik ─────
+var table tbl = table.new(position.top_right, 6, 3, bgcolor = color.new(color.black, 20), border_width = 1)
+
+fillRow(int row, string name, Setup s) =>
+    n = s.wins + s.losses
+    table.cell(tbl, 0, row, name, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 1, row, str.tostring(n), text_color = color.white, text_size = size.small)
+    table.cell(tbl, 2, row, str.tostring(s.wins), text_color = color.green, text_size = size.small)
+    table.cell(tbl, 3, row, str.tostring(s.losses), text_color = color.red, text_size = size.small)
+    table.cell(tbl, 4, row, n > 0 ? str.tostring(100.0 * s.wins / n, "#.#") + "%" : "-", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 5, row, str.tostring(s.sumR, "#.##") + "R", text_color = s.sumR >= 0 ? color.green : color.red, text_size = size.small)
+
+if showStats and barstate.islast
+    headers = array.from("Setup", "Trades", "Gewinn", "Verlust", "Treffer", "Summe")
+    for i = 0 to 5
+        table.cell(tbl, i, 0, headers.get(i), text_color = color.silver, text_size = size.small)
+    fillRow(1, "M / Short", sShort)
+    if showLong
+        fillRow(2, "W / Long", sLong)
