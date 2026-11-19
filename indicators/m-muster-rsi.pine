@@ -21,6 +21,7 @@ grpP = "Muster"
 pivLen         = input.int(5, "Pivot-Stärke (Kerzen links/rechts)", minval = 2, maxval = 20, group = grpP, tooltip = "Wie ausgeprägt ein Hoch/Tief sein muss. Größer = nur deutliche Spitzen.")
 trendLen       = input.int(100, "Rückblick Aufwärtstrend (Kerzen)", minval = 10, maxval = 400, group = grpP, tooltip = "In diesem Bereich vor Hoch 1 wird das tiefste Tief gesucht (= Trendstart = TP).")
 minTrendAtr    = input.float(4.0, "Min. Länge des Aufwärtstrends (x ATR)", minval = 0, step = 0.5, group = grpP, tooltip = "Wie lang die Aufwärtsbewegung vor dem M mindestens sein muss, in ATR gemessen.")
+maxTopDiffAtr  = input.float(0.3, "Max. Abstand Hoch 2 über Hoch 1 (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Double Top: Hoch 2 darf nur minimal höher sein als Hoch 1. 0.3 = höchstens ein knappes Drittel einer durchschnittlichen Kerze.")
 maxPatternBars = input.int(60, "Max. Kerzen zwischen Hoch 1 und Hoch 2", minval = 3, maxval = 300, group = grpP)
 maxWaitBars    = input.int(50, "Max. Kerzen bis Ausbruch + Retest", minval = 5, maxval = 500, group = grpP)
 breakMinAtr    = input.float(0.2, "Min. Ausbruchsstärke (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Die Kerze muss mindestens so weit unter der Nackenlinie schließen. Filtert schwache Fakeouts.")
@@ -117,7 +118,9 @@ detect(Setup s, float piv, float p1, int b1, float r1) =>
             r2   = d == -1 ? rsiHi : rsiLo
             span = b2 - b1
             // Regel: Hoch 1 nicht höher als Hoch 2 (W: Tief 1 nicht tiefer als Tief 2)
-            bool priceOk = d == -1 ? p1 <= p2 : p1 >= p2
+            // und nur minimal (Double Top / Double Bottom)
+            float topDiff = math.abs(p2 - p1)
+            bool priceOk = (d == -1 ? p1 <= p2 : p1 >= p2) and topDiff <= maxTopDiffAtr * atr
             // Regel: RSI umgekehrt (Hoch 1 höher, Hoch 2 tiefer)
             bool rsiOk = d == -1 ? (r1 > r2 and r1 - r2 >= minRsiDiff) : (r2 > r1 and r2 - r1 >= minRsiDiff)
             if priceOk and rsiOk and span >= 2 and span <= maxPatternBars and b1 - trendLen >= 0
