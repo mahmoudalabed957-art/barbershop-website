@@ -23,6 +23,8 @@ trendLen       = input.int(100, "Rückblick Aufwärtstrend (Kerzen)", minval = 1
 minTrendAtr    = input.float(4.0, "Min. Länge des Aufwärtstrends (x ATR)", minval = 0, step = 0.5, group = grpP, tooltip = "Wie lang die Aufwärtsbewegung vor dem M mindestens sein muss, in ATR gemessen.")
 maxPatternBars = input.int(60, "Max. Kerzen zwischen Hoch 1 und Hoch 2", minval = 3, maxval = 300, group = grpP)
 maxWaitBars    = input.int(50, "Max. Kerzen bis Ausbruch + Retest", minval = 5, maxval = 500, group = grpP)
+breakMinAtr    = input.float(0.2, "Min. Ausbruchsstärke (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Die Kerze muss mindestens so weit unter der Nackenlinie schließen. Filtert schwache Fakeouts.")
+cancelTpFirst  = input.bool(false, "Abbrechen, wenn TP vor dem Retest erreicht wird", group = grpP, tooltip = "Aus = auch wenn der Preis nach dem Ausbruch schon bis ans Ziel fällt, wird weiter auf den Retest gewartet (wie im Beispielbild).")
 retestTolAtr   = input.float(0.25, "Retest-Toleranz (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Wie nah der Preis von unten an die Nackenlinie kommen muss, damit es als Retest zählt.")
 showLong       = input.bool(false, "W-Muster (Long) auch suchen", group = grpP, tooltip = "Spiegelbild: W nach langem Abwärtstrend, zweites Tief tiefer, RSI am zweiten Tief höher.")
 
@@ -30,6 +32,7 @@ grpR = "RSI"
 rsiLen     = input.int(14, "RSI-Länge", minval = 2, group = grpR)
 rsiSrc     = input.source(close, "RSI-Quelle", group = grpR)
 minRsiDiff = input.float(1.0, "Min. RSI-Unterschied zwischen den Hochs", minval = 0, step = 0.5, group = grpR)
+rsiWin     = input.int(2, "RSI-Spitze suchen ± Kerzen um das Hoch", minval = 0, maxval = 20, group = grpR, tooltip = "Die RSI-Spitze liegt oft 1–2 Kerzen neben dem Preis-Hoch. Es wird die höchste RSI-Spitze in diesem Fenster genommen.")
 
 grpD = "Anzeige"
 colShort  = input.color(color.red, "Farbe M / Short", group = grpD)
@@ -43,6 +46,11 @@ atr = ta.atr(14)
 tol = atr * retestTolAtr
 ph  = ta.pivothigh(high, pivLen, pivLen)
 pl  = ta.pivotlow(low, pivLen, pivLen)
+brk = atr * breakMinAtr
+// RSI-Spitze / -Tal rund um das Pivot (Pivot liegt pivLen Kerzen zurück)
+rsiW  = math.min(rsiWin, pivLen)
+rsiHi = ta.highest(rsi, 2 * rsiW + 1)[pivLen - rsiW]
+rsiLo = ta.lowest(rsi, 2 * rsiW + 1)[pivLen - rsiW]
 
 // state: 0 = nichts, 1 = warte auf Ausbruch, 2 = warte auf Retest,
 //        3 = Retest erreicht, warte auf Bestätigungskerze, 4 = im Trade
@@ -106,7 +114,7 @@ detect(Setup s, float piv, float p1, int b1, float r1) =>
             d    = s.dir
             p2   = piv
             b2   = bar_index - pivLen
-            r2   = rsi[pivLen]
+            r2   = d == -1 ? rsiHi : rsiLo
             span = b2 - b1
             // Regel: Hoch 1 nicht höher als Hoch 2 (W: Tief 1 nicht tiefer als Tief 2)
             bool priceOk = d == -1 ? p1 <= p2 : p1 >= p2
@@ -155,7 +163,7 @@ detect(Setup s, float piv, float p1, int b1, float r1) =>
                     s.startB := bar_index
                     // Falls der Ausbruch schon in den letzten Kerzen passiert ist
                     for i = 0 to pivLen - 1
-                        if d == -1 ? close[i] < neck : close[i] > neck
+                        if d == -1 ? close[i] < neck - brk[i] : close[i] > neck + brk[i]
                             s.state := 2
                     alert((d == -1 ? "M-Muster" : "W-Muster") + " mit RSI-Divergenz auf " + syminfo.ticker + " – warte auf Ausbruch und Retest", alert.freq_once_per_bar_close)
 
@@ -182,11 +190,11 @@ step(Setup s) =>
                 invalidate(s, "Zeit abgelaufen")
             else
                 if s.state == 1
-                    if d == -1 ? close < s.neck : close > s.neck
+                    if d == -1 ? close < s.neck - brk : close > s.neck + brk
                         s.state := 2
                         label.new(bar_index, d == -1 ? low : high, "Ausbruch", style = d == -1 ? label.style_label_up : label.style_label_down, color = color.new(colNeck, 20), textcolor = color.white, size = size.tiny)
                 else if s.state == 2
-                    if tpHit
+                    if tpHit and cancelTpFirst
                         invalidate(s, "Ziel ohne Retest")
                     else if d == -1 ? high >= s.neck - tol : low <= s.neck + tol
                         s.state := 3
@@ -212,11 +220,11 @@ detect(sLong, pl, lastPL, lastPLB, lastPLR)
 if not na(ph)
     lastPH  := ph
     lastPHB := bar_index - pivLen
-    lastPHR := rsi[pivLen]
+    lastPHR := rsiHi
 if not na(pl)
     lastPL  := pl
     lastPLB := bar_index - pivLen
-    lastPLR := rsi[pivLen]
+    lastPLR := rsiLo
 
 // ───── Statistik ─────
 var table tbl = table.new(position.top_right, 6, 3, bgcolor = color.new(color.black, 20), border_width = 1)
