@@ -21,13 +21,14 @@ strategy("M-Muster + RSI Backtest", shorttitle = "M+RSI BT", overlay = true, max
 
 // ───── Eingaben ─────
 grpP = "Muster"
-pivLen         = input.int(5, "Pivot-Stärke (Kerzen links/rechts)", minval = 2, maxval = 20, group = grpP, tooltip = "Wie ausgeprägt ein Hoch/Tief sein muss. Größer = nur deutliche Spitzen.")
-trendLen       = input.int(100, "Rückblick Aufwärtstrend (Kerzen)", minval = 10, maxval = 400, group = grpP, tooltip = "In diesem Bereich vor Hoch 1 wird das tiefste Tief gesucht (= Trendstart = TP).")
-minTrendAtr    = input.float(4.0, "Min. Länge des Aufwärtstrends (x ATR)", minval = 0, step = 0.5, group = grpP, tooltip = "Wie lang die Aufwärtsbewegung vor dem M mindestens sein muss, in ATR gemessen.")
+autoTf         = input.bool(true, "Automatische Werte für 1 Min / 5 Min", group = grpP, tooltip = "An: Auf dem 1- und 5-Minuten-Chart werden Pivot-Stärke, Trendlänge, Ausbruchsstärke und Wartezeit automatisch gesetzt. Die Eingaben unten gelten dann nur für andere Zeitrahmen.")
+pivLenIn         = input.int(5, "Pivot-Stärke (Kerzen links/rechts)", minval = 2, maxval = 20, group = grpP, tooltip = "Wie ausgeprägt ein Hoch/Tief sein muss. Größer = nur deutliche Spitzen.")
+trendLenIn       = input.int(100, "Rückblick Aufwärtstrend (Kerzen)", minval = 10, maxval = 400, group = grpP, tooltip = "In diesem Bereich vor Hoch 1 wird das tiefste Tief gesucht (= Trendstart = TP).")
+minTrendAtrIn    = input.float(4.0, "Min. Länge des Aufwärtstrends (x ATR)", minval = 0, step = 0.5, group = grpP, tooltip = "Wie lang die Aufwärtsbewegung vor dem M mindestens sein muss, in ATR gemessen.")
 maxTopDiffAtr  = input.float(0.3, "Max. Abstand Hoch 2 über Hoch 1 (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Double Top: Hoch 2 darf nur minimal höher sein als Hoch 1. 0.3 = höchstens ein knappes Drittel einer durchschnittlichen Kerze.")
 maxPatternBars = input.int(60, "Max. Kerzen zwischen Hoch 1 und Hoch 2", minval = 3, maxval = 300, group = grpP)
-maxWaitBars    = input.int(50, "Max. Kerzen bis Ausbruch + Retest", minval = 5, maxval = 500, group = grpP)
-breakMinAtr    = input.float(0.2, "Min. Ausbruchsstärke (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Die Kerze muss mindestens so weit unter der Nackenlinie schließen. Filtert schwache Fakeouts.")
+maxWaitBarsIn    = input.int(50, "Max. Kerzen bis Ausbruch + Retest", minval = 5, maxval = 500, group = grpP)
+breakMinAtrIn    = input.float(0.2, "Min. Ausbruchsstärke (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Die Kerze muss mindestens so weit unter der Nackenlinie schließen. Filtert schwache Fakeouts.")
 cancelTpFirst  = input.bool(false, "Abbrechen, wenn TP vor dem Retest erreicht wird", group = grpP, tooltip = "Aus = auch wenn der Preis nach dem Ausbruch schon bis ans Ziel fällt, wird weiter auf den Retest gewartet (wie im Beispielbild).")
 retestTolAtr   = input.float(0.25, "Retest-Toleranz (x ATR)", minval = 0, step = 0.05, group = grpP, tooltip = "Wie nah der Preis von unten an die Nackenlinie kommen muss, damit es als Retest zählt.")
 showLong       = input.bool(false, "W-Muster (Long) auch suchen", group = grpP, tooltip = "Spiegelbild: W nach langem Abwärtstrend, zweites Tief tiefer, RSI am zweiten Tief höher.")
@@ -51,6 +52,15 @@ colShort  = input.color(color.red, "Farbe M / Short", group = grpD)
 colLong   = input.color(color.green, "Farbe W / Long", group = grpD)
 colNeck   = input.color(color.orange, "Farbe Nackenlinie", group = grpD)
 showStats = input.bool(true, "Statistik-Tabelle anzeigen (in R)", group = grpD)
+
+// Automatische Werte je Zeitrahmen
+is1m = autoTf and timeframe.period == "1"
+is5m = autoTf and timeframe.period == "5"
+pivLen      = is1m ? 6   : is5m ? 5   : pivLenIn
+trendLen    = is1m ? 150 : is5m ? 100 : trendLenIn
+minTrendAtr = is1m ? 5.0 : is5m ? 4.0 : minTrendAtrIn
+breakMinAtr = is1m ? 0.3 : is5m ? 0.2 : breakMinAtrIn
+maxWaitBars = is1m ? 70  : is5m ? 50  : maxWaitBarsIn
 
 // ───── Basiswerte ─────
 rsi = ta.rsi(rsiSrc, rsiLen)
