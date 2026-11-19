@@ -186,6 +186,7 @@ detect(Setup s, float piv, float p1, int b1, float r1) =>
                         if d == -1 ? close[i] < neck - brk[i] : close[i] > neck + brk[i]
                             s.state := 2
                     alert((d == -1 ? "M-Muster" : "W-Muster") + " mit RSI-Divergenz auf " + syminfo.ticker + " – warte auf Ausbruch und Retest", alert.freq_once_per_bar_close)
+    s.state  // fester Rückgabewert (verhindert Typ-Fehler der if-Kette)
 
 // Ablauf: Ausbruch -> Retest -> Einstieg -> TP/SL
 step(Setup s) =>
@@ -225,6 +226,7 @@ step(Setup s) =>
                             invalidate(s, "außerhalb Handelszeit")
                         else
                             enterTrade(s)
+    s.state  // fester Rückgabewert (verhindert Typ-Fehler der if-Kette)
 
 // ───── Hauptlogik ─────
 var float lastPH  = na
